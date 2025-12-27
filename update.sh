@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # GitHub-Repository-URL und Branch definieren
-REPO_URL="https://github.com/diggerwf/Updater.git"
+REPO_URL="https://github.com/diggerwf/K3S-Home-Assistant-installer.git"
 BRANCH="main"
 
 # Pfad zum Repository (aktueller Ordner)
