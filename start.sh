@@ -19,15 +19,13 @@ HA_NODE_IPS=()
 # 2. Debugging-Funktionen
 # -----------------------------------------------------------------------------
 
-# [analyze_with_gemini und perform_auto_debug Funktionen bleiben unverändert]
-
 analyze_with_gemini() {
     local DEBUG_PROMPT="$1" 
 
     if [ -z "$GEMINI_API_KEY" ]; then
         echo "⚠️ Gemini API Key fehlt. KI-Analyse übersprungen."
         return
-    fi
+    }
     
     echo ""
     echo "====================================================="
@@ -100,7 +98,6 @@ perform_auto_debug() {
 }
 
 
-# NEUE, VERBESSERTE CHECK_STATUS FUNKTION
 check_status() {
     STEP_MSG="$1"
     if [ $? -eq 0 ]; then
@@ -110,7 +107,7 @@ check_status() {
         echo "-----------------------------------------------------"
         echo "Das Skript wird beendet und startet die Fehleranalyse."
         echo "-----------------------------------------------------"
-        perform_auto_debug 
+        perform_auto_debug
         exit 1
     fi
 }
@@ -184,7 +181,6 @@ collect_user_input() {
 # -----------------------------------------------------------------------------
 display_cluster_metrics_and_collect_ips() {
     echo "### 📊 Aktuelle k3s Cluster-Metriken & IP-Erkennung ###"
-    # ... (Logik zur Anzeige von CPU/RAM und Befüllung von HA_NODE_IPS bleibt gleich) ...
     
     echo "--- 1. Node-Status & IP-Adressen ---"
     
@@ -363,6 +359,35 @@ EOF
 # -----------------------------------------------------------------------------
 # 6. Hauptinstallationslogik 
 # -----------------------------------------------------------------------------
+
+# NEUE Funktion für den Ticker
+wait_for_pod_ready() {
+    local TIMEOUT=300
+    local INTERVAL=5
+    local ELAPSED=0
+    local SPINNER=('/' '-' '\' '|')
+    local SPINNER_INDEX=0
+
+    echo -n "Starte Home Assistant Pods (max. ${TIMEOUT}s)..."
+
+    while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+        if kubectl get pod -n "$K8S_NAMESPACE" -l app=home-assistant -o jsonpath='{.items[0].status.containerStatuses[*].ready}' 2>/dev/null | grep -q "true"; then
+            echo -e "\r✅ Pod bereit. Warte auf Home Assistant App-Start..."
+            return 0 # Erfolg
+        fi
+
+        SPINNER_INDEX=$(( (SPINNER_INDEX + 1) % 4 ))
+        echo -en "\r[${SPINNER[$SPINNER_INDEX]}] Warte auf Pod-Ready (${ELAPSED}/${TIMEOUT}s)... "
+        
+        sleep "$INTERVAL"
+        ELAPSED=$((ELAPSED + INTERVAL))
+    done
+
+    echo -e "\r❌ Zeitüberschreitung (${TIMEOUT}s) beim Warten auf Pod-Ready."
+    return 1 # Fehler
+}
+
+
 main_installation() {
     echo "### 🚀 Starte Kubernetes Deployment ###"
 
@@ -389,8 +414,9 @@ main_installation() {
 
     echo ""
     echo "### Starte: Finale Überprüfung des Home Assistant Pods ###"
-    echo "Warte maximal 300 Sekunden, bis der Home Assistant Pod bereit ist..."
-    kubectl wait --for=condition=ready pod -l app=home-assistant -n "$K8S_NAMESPACE" --timeout=300s
+    
+    # Warte mit Ticker auf Pod-Ready
+    wait_for_pod_ready
     check_status "Home Assistant Pod ist gestartet und bereit"
 
     echo ""
