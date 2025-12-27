@@ -22,10 +22,11 @@ HA_NODE_IPS=()
 analyze_with_gemini() {
     local DEBUG_PROMPT="$1" 
 
+    # KRITISCHER FIX: Korrektur der Klammer um die return-Anweisung
     if [ -z "$GEMINI_API_KEY" ]; then
         echo "⚠️ Gemini API Key fehlt. KI-Analyse übersprungen."
         return
-    }
+    fi 
     
     echo ""
     echo "====================================================="
@@ -114,7 +115,7 @@ check_status() {
 
 
 # -----------------------------------------------------------------------------
-# 3. Interaktive Benutzerabfrage (Nur leere Werte abfragen)
+# 3. Interaktive Benutzerabfrage (Überprüfung und Optionales Überschreiben)
 # -----------------------------------------------------------------------------
 
 collect_user_input() {
@@ -124,11 +125,16 @@ collect_user_input() {
     # KI-Analyse: Nur abfragen, wenn der Key in der Conf-Datei leer ist
     if [ -z "$GEMINI_API_KEY" ]; then
         echo "### Optionale KI-Analyse ###"
-        read -rp "Möchten Sie den Gemini API Key für die Fehleranalyse eingeben? (Leer lassen für Nein): " input_key
+        read -rp "Möchten Sie den Gemini API Key für die Fehleranalyse eingeben? (Aktuell: <Leer> | Eingabe überschreibt): " input_key
         GEMINI_API_KEY=${input_key:-$GEMINI_API_KEY} # Behalte den alten Wert, falls Eingabe leer
+    else
+        echo "### Optionale KI-Analyse (Key vorhanden) ###"
     fi
     
-    # Standard-Konfigurationen: Nur abfragen, wenn der Wert leer ist
+    # Standard-Konfigurationen: Fragen immer, um Überprüfung zu ermöglichen
+    
+    # Der Text ${HA_DOMAIN:-<Leer>} sorgt dafür, dass <Leer> angezeigt wird, wenn der Wert nicht gesetzt ist.
+    # HA_DOMAIN=${input_domain:-$HA_DOMAIN} sorgt dafür, dass der alte Wert (aus settings.conf) beibehalten wird, wenn input_domain leer ist (man drückt Enter).
     read -rp "1. Domänen-/Host-Name (Aktuell: ${HA_DOMAIN:-<Leer>}, Eingabe überschreibt): " input_domain
     HA_DOMAIN=${input_domain:-$HA_DOMAIN}
     
@@ -141,7 +147,7 @@ collect_user_input() {
     read -rp "4. StorageClass (Aktuell: ${HA_STORAGE_CLASS:-<Leer>}, Eingabe überschreibt): " input_class
     HA_STORAGE_CLASS=${input_class:-$HA_STORAGE_CLASS}
 
-    # Load Balancer IPs: Manuell oder Automatisch
+    # Load Balancer IPs: Manuell oder Automatisch (Anzeige der erkannten IPs)
     if [ -n "$HA_LOAD_BALANCER_IPS" ]; then
         IFS=',' read -r -a HA_NODE_IPS <<< "$HA_LOAD_BALANCER_IPS"
         HA_SERVICE_TYPE="LoadBalancer"
@@ -153,14 +159,14 @@ collect_user_input() {
     elif [ ${#HA_NODE_IPS[@]} -gt 0 ]; then
         HA_SERVICE_TYPE="LoadBalancer"
         echo ""
-        echo "### Load Balancer IP Konfiguration (Automatisch) ###"
+        echo "### Load Balancer IP Konfiguration (Automatisch erkannt) ###"
         echo "➡️ Service-Typ wird auf 'LoadBalancer' gesetzt."
         echo "➡️ Folgende Node-IPs werden verwendet: ${HA_NODE_IPS[*]}"
         
     else
         HA_SERVICE_TYPE="ClusterIP"
         echo ""
-        echo "### Load Balancer IP Konfiguration (Deaktiviert) ###"
+        echo "### Load Balancer IP Konfiguration (Deaktiviert/ClusterIP) ###"
         echo "➡️ Keine externen/statischen IPs gefunden. Service-Typ bleibt auf 'ClusterIP'."
     fi
     
@@ -360,7 +366,6 @@ EOF
 # 6. Hauptinstallationslogik 
 # -----------------------------------------------------------------------------
 
-# NEUE Funktion für den Ticker
 wait_for_pod_ready() {
     local TIMEOUT=300
     local INTERVAL=5
@@ -371,6 +376,7 @@ wait_for_pod_ready() {
     echo -n "Starte Home Assistant Pods (max. ${TIMEOUT}s)..."
 
     while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+        # Prüfe, ob der Pod als Ready gemeldet wird
         if kubectl get pod -n "$K8S_NAMESPACE" -l app=home-assistant -o jsonpath='{.items[0].status.containerStatuses[*].ready}' 2>/dev/null | grep -q "true"; then
             echo -e "\r✅ Pod bereit. Warte auf Home Assistant App-Start..."
             return 0 # Erfolg
