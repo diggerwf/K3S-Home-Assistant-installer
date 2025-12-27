@@ -112,6 +112,63 @@ check_status() {
     fi
 }
 
+# NEUE FUNKTION zur automatischen Installation fehlender Tools
+install_missing_tools() {
+    local MISSING_TOOLS=()
+    
+    for tool in jq bc curl; do
+        if ! command -v "$tool" &> /dev/null; then
+            MISSING_TOOLS+=("$tool")
+        fi
+    done
+
+    if [ ${#MISSING_TOOLS[@]} -eq 0 ]; then
+        return 0 # Alle Tools vorhanden
+    fi
+
+    echo ""
+    echo "=========================================================================="
+    echo "⚠️ FEHLENDE ABHÄNGIGKEITEN ERKANNT"
+    echo "Die folgenden Tools sind für dieses Skript erforderlich: ${MISSING_TOOLS[*]}"
+    echo "=========================================================================="
+    
+    # Automatische Erkennung des Paketmanagers (fokusiert auf apt, dnf/yum, apk)
+    local INSTALL_CMD=""
+    if command -v apt &> /dev/null; then
+        INSTALL_CMD="sudo apt update && sudo apt install -y"
+    elif command -v dnf &> /dev/null; then
+        INSTALL_CMD="sudo dnf install -y"
+    elif command -v yum &> /dev/null; then
+        INSTALL_CMD="sudo yum install -y"
+    elif command -v apk &> /dev/null; then
+        INSTALL_CMD="sudo apk update && sudo apk add"
+    else
+        echo "❌ FEHLER: Konnte keinen bekannten Paketmanager (apt, dnf, yum, apk) finden."
+        echo "Bitte installieren Sie die Tools '${MISSING_TOOLS[*]}' manuell."
+        exit 1
+    fi
+
+    echo "➡️ Das Skript wird versuchen, die Tools über den Befehl '$INSTALL_CMD' zu installieren."
+    echo "    Dazu benötigen Sie das 'sudo'-Passwort."
+    read -rp "Möchten Sie die Installation fortsetzen? (j/n): " confirm
+    
+    if [[ "$confirm" =~ ^[Jj]$ ]]; then
+        # Führe den Installationsbefehl aus
+        $INSTALL_CMD "${MISSING_TOOLS[@]}"
+        
+        if [ $? -eq 0 ]; then
+            echo "✅ Installation erfolgreich abgeschlossen."
+            return 0
+        else
+            echo "❌ FEHLER: Die automatische Installation ist fehlgeschlagen."
+            echo "Bitte prüfen Sie die Fehlermeldungen und installieren Sie die Tools manuell."
+            exit 1
+        fi
+    else
+        echo "Installation abgebrochen. Das Skript kann ohne diese Tools nicht fortfahren."
+        exit 1
+    fi
+}
 
 # -----------------------------------------------------------------------------
 # 3. Interaktive Benutzerabfrage (Überprüfung und Optionales Überschreiben)
@@ -125,7 +182,7 @@ collect_user_input() {
     if [ -z "$GEMINI_API_KEY" ]; then
         echo "### Optionale KI-Analyse ###"
         read -rp "Möchten Sie den Gemini API Key für die Fehleranalyse eingeben? (Aktuell: <Leer> | Eingabe überschreibt): " input_key
-        GEMINI_API_KEY=${input_key:-$GEMINI_API_KEY} # Behalte den alten Wert, falls Eingabe leer
+        GEMINI_API_KEY=${input_key:-$GEMINI_API_KEY} 
     else
         echo "### Optionale KI-Analyse (Key vorhanden) ###"
     fi
@@ -436,12 +493,7 @@ main_installation() {
 # 7. Skript Ausführung
 # -----------------------------------------------------------------------------
 
-# Erste Prüfung der Abhängigkeiten (jq, bc, curl)
-if ! command -v jq &> /dev/null || ! command -v bc &> /dev/null || ! command -v curl &> /dev/null; then
-    echo "❌ FEHLER: Die Tools 'jq', 'bc' und 'curl' sind für dieses Skript erforderlich."
-    echo "Bitte installieren Sie diese zuerst, z.B. mit: sudo apt install jq bc curl"
-    exit 1
-fi
+install_missing_tools
 
 display_cluster_metrics_and_collect_ips
 check_status "Cluster-Metriken und Node-IPs erfolgreich gesammelt"
