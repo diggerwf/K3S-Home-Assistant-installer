@@ -22,7 +22,6 @@ HA_NODE_IPS=()
 analyze_with_gemini() {
     local DEBUG_PROMPT="$1" 
 
-    # KRITISCHER FIX: Korrektur der Klammer um die return-Anweisung
     if [ -z "$GEMINI_API_KEY" ]; then
         echo "⚠️ Gemini API Key fehlt. KI-Analyse übersprungen."
         return
@@ -122,7 +121,7 @@ collect_user_input() {
     echo "### ⚙️ Konfiguration für Home Assistant auf k3s ###"
     echo "-----------------------------------------------------"
     
-    # KI-Analyse: Nur abfragen, wenn der Key in der Conf-Datei leer ist
+    # KI-Analyse: Abfrage nur, wenn der Key in der Conf-Datei leer ist
     if [ -z "$GEMINI_API_KEY" ]; then
         echo "### Optionale KI-Analyse ###"
         read -rp "Möchten Sie den Gemini API Key für die Fehleranalyse eingeben? (Aktuell: <Leer> | Eingabe überschreibt): " input_key
@@ -133,18 +132,16 @@ collect_user_input() {
     
     # Standard-Konfigurationen: Fragen immer, um Überprüfung zu ermöglichen
     
-    # Der Text ${HA_DOMAIN:-<Leer>} sorgt dafür, dass <Leer> angezeigt wird, wenn der Wert nicht gesetzt ist.
-    # HA_DOMAIN=${input_domain:-$HA_DOMAIN} sorgt dafür, dass der alte Wert (aus settings.conf) beibehalten wird, wenn input_domain leer ist (man drückt Enter).
-    read -rp "1. Domänen-/Host-Name (Aktuell: ${HA_DOMAIN:-<Leer>}, Eingabe überschreibt): " input_domain
+    read -rp "1. Domänen-/Host-Name (Aktuell: ${HA_DOMAIN:-<Leer>}, ENTER behält): " input_domain
     HA_DOMAIN=${input_domain:-$HA_DOMAIN}
     
-    read -rp "2. Zeitzone (Aktuell: ${HA_TIMEZONE:-<Leer>}, Eingabe überschreibt): " input_tz
+    read -rp "2. Zeitzone (Aktuell: ${HA_TIMEZONE:-<Leer>}, ENTER behält): " input_tz
     HA_TIMEZONE=${input_tz:-$HA_TIMEZONE}
     
-    read -rp "3. Speichergröße (Aktuell: ${HA_STORAGE_SIZE:-<Leer>}, Eingabe überschreibt): " input_size
+    read -rp "3. Speichergröße (Aktuell: ${HA_STORAGE_SIZE:-<Leer>}, ENTER behält): " input_size
     HA_STORAGE_SIZE=${input_size:-$HA_STORAGE_SIZE}
     
-    read -rp "4. StorageClass (Aktuell: ${HA_STORAGE_CLASS:-<Leer>}, Eingabe überschreibt): " input_class
+    read -rp "4. StorageClass (Aktuell: ${HA_STORAGE_CLASS:-<Leer>}, ENTER behält): " input_class
     HA_STORAGE_CLASS=${input_class:-$HA_STORAGE_CLASS}
 
     # Load Balancer IPs: Manuell oder Automatisch (Anzeige der erkannten IPs)
@@ -439,8 +436,10 @@ main_installation() {
 # 7. Skript Ausführung
 # -----------------------------------------------------------------------------
 
+# Erste Prüfung der Abhängigkeiten (jq, bc, curl)
 if ! command -v jq &> /dev/null || ! command -v bc &> /dev/null || ! command -v curl &> /dev/null; then
     echo "❌ FEHLER: Die Tools 'jq', 'bc' und 'curl' sind für dieses Skript erforderlich."
+    echo "Bitte installieren Sie diese zuerst, z.B. mit: sudo apt install jq bc curl"
     exit 1
 fi
 
