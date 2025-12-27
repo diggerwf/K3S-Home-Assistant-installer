@@ -34,7 +34,6 @@ check_and_set_permissions() {
             echo "❌ FEHLER: Benötigte Datei '$file' nicht gefunden."
             if [ "$file" == "$SETTINGS_FILE" ]; then
                 echo "➡️ VERSUCHE: Erstelle leere $SETTINGS_FILE..."
-                # Erstellt die settings.conf, falls sie fehlt
                 touch "$SETTINGS_FILE"
                 if [ $? -ne 0 ]; then
                     echo "❌ FEHLER: Konnte '$SETTINGS_FILE' nicht erstellen. Berechtigungen prüfen."
@@ -134,8 +133,9 @@ main_menu() {
             *)
                 echo "Ungültige Auswahl. Bitte geben Sie 1 bis 4 ein."
                 ;;
-        </code_block
-    }
+        esac
+    done
+}
 
 # -----------------------------------------------------------------------------
 # 5. Skript-Ausführung
